@@ -12,3 +12,4 @@ msix_staging/
 Assets/*.png
 Assets/*.jpg
 node_modules/
+.vs/
