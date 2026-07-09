@@ -14,31 +14,21 @@ $projectPath = "src/ControlParental.App.UI"
 $stagingPath = "msix_staging"
 $outputPath = "ControlParental.App.msix"
 
-Write-Host "=== Building MSIX for ControlParental.App.UI ===" -ForegroundColor Cyan
+Write-Host "=== Building Self-Contained MSIX for ControlParental.App.UI ===" -ForegroundColor Cyan
 
-# 1. Build del proyecto
-Write-Host "[1/4] Building project..." -ForegroundColor Yellow
-& "C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Current\Bin\MSBuild.exe" `
-    "$projectPath/ControlParental.App.UI.csproj" `
-    /t:Build `
-    /p:Configuration=$Configuration `
-    /p:Platform=x64 `
-    /v:minimal
+# 1. Publish self-contained
+Write-Host "[1/5] Publishing self-contained..." -ForegroundColor Yellow
+& dotnet publish "$projectPath/ControlParental.App.UI.csproj" `
+    -c $Configuration `
+    -r win-x64 `
+    --self-contained true `
+    -o $stagingPath
 
-if ($LASTEXITCODE -ne 0) { throw "Build failed" }
-Write-Host "    Build OK" -ForegroundColor Green
+if ($LASTEXITCODE -ne 0) { throw "Publish failed" }
+Write-Host "    Publish OK" -ForegroundColor Green
 
-# 2. Limpiar staging
-Write-Host "[2/4] Cleaning staging..." -ForegroundColor Yellow
-if (Test-Path $stagingPath) { Remove-Item $stagingPath -Recurse -Force }
-New-Item -ItemType Directory -Path $stagingPath | Out-Null
-
-# 3. Copiar archivos del build
-Write-Host "[3/4] Copying build files..." -ForegroundColor Yellow
-$buildPath = "$projectPath/bin/x64/$Configuration/net9.0-windows10.0.19041.0/win-x64"
-Copy-Item -Path "$buildPath/*" -Destination "$stagingPath/" -Recurse -Force
-
-# Copiar assets del proyecto (logos reales)
+# 2. Copiar assets del proyecto (logos reales)
+Write-Host "[2/5] Copying assets..." -ForegroundColor Yellow
 $assetsPath = "$stagingPath/Assets"
 if (-not (Test-Path $assetsPath)) { New-Item -ItemType Directory -Path $assetsPath | Out-Null }
 
@@ -60,7 +50,7 @@ foreach ($logo in $logos) {
     }
 }
 
-# 4. Escribir AppxManifest.xml
+# 3. Escribir AppxManifest.xml
 $manifestContent = @"
 <?xml version="1.0" encoding="utf-8"?>
 <Package
@@ -84,8 +74,6 @@ $manifestContent = @"
 
   <Dependencies>
     <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.19041.0" MaxVersionTested="10.0.26100.0" />
-    <PackageDependency Name="Microsoft.WindowsAppRuntime.1.8" MinVersion="8000.879.2017.0" Publisher="CN=Microsoft Corporation, O=Microsoft Corporation, L=Redmond, S=Washington, C=US" />
-    <PackageDependency Name="Microsoft.WindowsAppRuntime.2" MinVersion="2.2.0.0" Publisher="CN=Microsoft Corporation, O=Microsoft Corporation, L=Redmond, S=Washington, C=US" />
   </Dependencies>
 
   <Resources>
@@ -122,7 +110,7 @@ $manifestContent = @"
 
 $manifestContent | Out-File -FilePath "$stagingPath/AppxManifest.xml" -Encoding utf8
 
-# 5. Crear MSIX
+# 4. Crear MSIX
 Write-Host "[4/4] Creating MSIX package..." -ForegroundColor Yellow
 if (Test-Path $outputPath) { Remove-Item $outputPath -Force }
 & $makeappx pack /d $stagingPath /p $outputPath /o
